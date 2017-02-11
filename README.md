@@ -2,12 +2,12 @@
 
 Reclutamiento del futuro. Estupendo, realmente estupendo.
 
-## Dependencies
+## Requisitos
 
 - [Java JDK 6 o mas actual](http://www.oracle.com/technetwork/java/javase/downloads/index.html)
 - [Leiningen](https://leiningen.org/#install)
 
-## Setup
+## Inicio
 
 Desde la carpeta base del proyecto, corre este comando para iniciar un servidor de desarrollo:
 
