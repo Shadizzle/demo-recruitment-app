@@ -11,10 +11,10 @@ Reclutamiento del futuro. Estupendo, realmente estupendo.
 
 Desde la carpeta base del proyecto, corre este comando para iniciar un servidor de desarrollo:
 
-    `lein figwheel`
+    lein figwheel
 
 Para producir una versión que se puede utilizar en producción:
 
-    `lein do clean, cljsbuild once min`
+    lein do clean, cljsbuild once min
 
 Mas información en [el repositorio de Figwheel](https://github.com/bhauman/lein-figwheel).
