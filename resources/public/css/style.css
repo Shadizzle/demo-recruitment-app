@@ -1,2 +1,6 @@
-/* some style */
-
+.loading-spinner {
+  display: flex;
+  justify-content: center;
+  font-size: 5rem;
+  margin-top: 4rem;
+}
