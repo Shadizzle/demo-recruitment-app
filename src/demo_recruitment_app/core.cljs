@@ -79,7 +79,6 @@
   [:div.filter-list
     [favourites-filter]])
 
-
 (defn root []
   [:div.container
     [:h1 "Usuarios"]
