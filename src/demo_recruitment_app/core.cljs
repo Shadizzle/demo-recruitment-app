@@ -8,8 +8,6 @@
 
 (enable-console-print!)
 
-(defn on-js-reload [])
-
 ;; State
 
 (defonce gh-users (r/atom []))
@@ -53,7 +51,7 @@
 (defn into-users! []
   (go
     (let [new-users (<! (get-users @gh-query @gh-query-page))]
-      (swap! gh-users #(into % (map tag-favourite) new-users)))))
+      (swap! gh-users #(into (vec %) (map tag-favourite) new-users)))))
 
 (defn favourite-user! [user]
   (s/update-favourites! conj (:id user))
@@ -75,6 +73,10 @@
       (reset! gh-query-page 1)
       (reset-users!))))
 
+(defn update-page! []
+  (swap! gh-query-page inc)
+  (into-users!))
+
 ;; Components
 
 (defn favourite-star [user]
@@ -89,13 +91,21 @@
 
 (defn user-list []
   (if (seq @gh-users)
-    [:table.table.table-striped.user-list
-      [:tbody
-        (let [show-all (not @only-favourites)]
-          (for [user @gh-users
-                :when (or show-all
-                          (:favourite user))]
-            ^{:key (:id user)} [user-row user]))]]
+    [:div.user-list
+      [:table.table.table-striped
+        [:tbody
+          (let [show-all (not @only-favourites)
+                index (zipmap (map :id @gh-users) (range))]
+            (for [user @gh-users
+                  :when (or show-all
+                            (:favourite user))]
+              ^{:key (get index (:id user))} [user-row user]))]]
+      (when (and (not @only-favourites)
+                 (= (mod (count @gh-users) 100) 0)) ;FIXME
+        [:div.col-md-offset-2
+          [:button.btn.btn-default.col-md-8 {:on-click #(update-page!)}
+            "Mas"]])]
+
     [:div.loading-spinner [:span.fa.fa-spinner.fa-spin]]))
 
 (defn favourites-filter []
@@ -124,13 +134,13 @@
         "Lenguaje"]
       [:div.col-sm-8
         [:input#language-filter.form-control]]]
-    [:input.btn.btn-default.col-sm-12 {:type "button" :value "Filtrar"
-                                         :on-click #(update-query!)}]])
+    [:button.btn.btn-default.col-sm-12 {:on-click #(update-query!)}
+      "Filtrar"]])
 
 (defn filter-list []
   [:div.filter-list
-    [favourites-filter]
-    [query-filters]])
+    [query-filters]
+    [favourites-filter]])
 
 (defn root []
   [:div.container
@@ -140,6 +150,17 @@
       [:div.col-md-3 [filter-list]]]])
 
 ;; Run
+
+(defn on-js-reload []
+  (set!
+    (.-value (.getElementById js/document "followers-filter"))
+    (:followers @gh-query))
+  (set!
+    (.-value (.getElementById js/document "location-filter"))
+    (:location @gh-query))
+  (set!
+    (.-value (.getElementById js/document "language-filter"))
+    (:language @gh-query)))
 
 (defonce users-initialised (reset-users!))
 
