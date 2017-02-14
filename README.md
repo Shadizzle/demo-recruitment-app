@@ -2,7 +2,7 @@
 
 Reclutamiento del futuro. Estupendo, realmente estupendo.
 
-https://fir-recruitment-app.firebaseapp.com
+[Verlo en vivo](https://fir-recruitment-app.firebaseapp.com)
 
 ## Requisitos
 
