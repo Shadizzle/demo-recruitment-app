@@ -1,6 +1,6 @@
 # demo-recruitment-app
 
-Reclutamiento del futuro. Estupendo, realmente estupendo.
+Reclutamiento del futuro. Estupendo, simplemente estupendo.
 
 [Verlo en vivo](https://fir-recruitment-app.firebaseapp.com)
 
