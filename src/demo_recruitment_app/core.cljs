@@ -19,6 +19,9 @@
 
 ;; Helpers
 
+(defn id->el [id]
+  (.getElementById js/document id))
+
 (defn tag-favourite [user]
   (let [fav-set (s/get-favourites)
         is-fav? #(fav-set (:id %))]
@@ -26,22 +29,21 @@
                    [:favourite true]
                    [:favourite false]))))
 
-(defn make-url [query page]
-  (str "https://api.github.com/search/users?per_page=100&page=" page
+(defn make-url [{:keys [followers location language]} page]
+  (str "https://api.github.com/search/users"
+       "?per_page=100"
+       "&page=" page
        "&q=type:user"
-       (if-not (-> query :followers blank?)
-         (str " followers:" (:followers query)))
-       (if-not (-> query :location blank?)
-         (str " location:" (:location query)))
-       (if-not (-> query :language blank?)
-         (str " language:" (:language query)))))
+       (if-not (blank? followers) (str " followers:" followers))
+       (if-not (blank? location) (str " location:" location))
+       (if-not (blank? language) (str " language:" language))))
 
 ;; Actions
 
 (defn get-users [query page]
-  (let [response-chan (chan 1 (map #(get-in % [:body :items])))
-        url (make-url query page)]
-    (http/get url {:with-credentials? false :channel response-chan})))
+  (http/get (make-url query page)
+    {:with-credentials? false
+     :channel (chan 1 (map #(get-in % [:body :items])))}))
 
 (defn reset-users! []
   (go
@@ -62,12 +64,9 @@
   (swap! gh-users #(map tag-favourite %)))
 
 (defn update-query! []
-  (let [followers-val (.-value (.getElementById js/document "followers-filter"))
-        location-val (.-value (.getElementById js/document "location-filter"))
-        language-val (.-value (.getElementById js/document "language-filter"))
-        new-query {:followers followers-val
-                   :location location-val
-                   :language language-val}]
+  (let [new-query {:followers (.-value (id->el "followers-filter"))
+                   :location (.-value (id->el "location-filter"))
+                   :language (.-value (id->el "language-filter"))}]
     (when (not= @gh-query new-query)
       (reset! gh-query new-query)
       (reset! gh-query-page 1)
@@ -90,31 +89,30 @@
     [:td [favourite-star user]]])
 
 (defn user-list []
-  (if (seq @gh-users)
-    [:div.user-list
-      [:table.table.table-striped
-        [:tbody
-          (let [show-all (not @only-favourites)
-                index (zipmap (map :id @gh-users) (range))]
-            (for [user @gh-users
-                  :when (or show-all
-                            (:favourite user))]
-              ^{:key (get index (:id user))} [user-row user]))]]
-      (when (and (not @only-favourites)
-                 (= (mod (count @gh-users) 100) 0)) ;FIXME
-        [:div.col-md-offset-2
-          [:button.btn.btn-default.col-md-8 {:on-click #(update-page!)}
-            "Mas"]])]
-
-    [:div.loading-spinner [:span.fa.fa-spinner.fa-spin]]))
+  (if (empty? @gh-users)
+    [:div.loading-spinner [:span.fa.fa-spinner.fa-spin]]
+    (let [show-all (not @only-favourites)]
+      [:div.user-list
+        [:table.table.table-striped
+          [:tbody
+            (->> @gh-users
+              (into []
+                (comp
+                  (map-indexed #(^{:key %1} [user-row %2]))
+                  (filter #(or show-all (:favourite %))))))]]
+        (when (and show-all (= (mod (count @gh-users) 100) 0)) ;FIXME
+          [:div.col-md-offset-2
+            [:button.btn.btn-default.col-md-8
+              {:on-click #(update-page!)}
+              "Mas"]])])))
 
 (defn favourites-filter []
   [:div.checkbox.favourites-filter
+    [:input#favourites-filter
+      {:type "checkbox"
+       :value @only-favourites
+       :on-click #(swap! only-favourites not)}]
     [:label {:for "favourites-filter"}
-      [:input#favourites-filter
-        {:type "checkbox"
-         :value @only-favourites
-         :on-click #(swap! only-favourites not)}]
       "Mostrar solo favoritos"]])
 
 (defn query-filters []
@@ -152,17 +150,11 @@
 ;; Run
 
 (defn on-js-reload []
-  (set!
-    (.-value (.getElementById js/document "followers-filter"))
-    (:followers @gh-query))
-  (set!
-    (.-value (.getElementById js/document "location-filter"))
-    (:location @gh-query))
-  (set!
-    (.-value (.getElementById js/document "language-filter"))
-    (:language @gh-query)))
+  (let [{:keys [followers location language]} @gh-query]
+    (set! (.-value (id->el "followers-filter")) followers)
+    (set! (.-value (id->el "location-filter")) location)
+    (set! (.-value (id->el "language-filter")) language)))
 
 (defonce users-initialised (reset-users!))
 
-(r/render-component [root]
-  (.getElementById js/document "app"))
+(r/render-component [root] (id->el "app"))
