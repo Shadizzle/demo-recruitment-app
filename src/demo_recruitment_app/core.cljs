@@ -23,7 +23,7 @@
   (.getElementById js/document id))
 
 (defn tag-favourite [user]
-  (let [fav-set (s/get-favourites)
+  (let [fav-set (s/get-collection "favourites")
         is-fav? #(fav-set (:id %))]
     (conj user (if (is-fav? user)
                    [:favourite true]
@@ -55,12 +55,15 @@
     (let [new-users (<! (get-users @gh-query @gh-query-page))]
       (swap! gh-users #(into (vec %) (map tag-favourite) new-users)))))
 
+(defn update-favourites! [f & args]
+  (apply s/update-collection-as! #{} "favourites" f args))
+
 (defn favourite-user! [user]
-  (s/update-favourites! conj (:id user))
+  (update-favourites! conj (:id user))
   (swap! gh-users #(map tag-favourite %)))
 
 (defn unfavourite-user! [user]
-  (s/update-favourites! disj (:id user))
+  (update-favourites! disj (:id user))
   (swap! gh-users #(map tag-favourite %)))
 
 (defn update-query! []
