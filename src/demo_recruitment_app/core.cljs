@@ -12,6 +12,7 @@
 
 ; Favouriting
 ; Followers as num field and dropdown for operator (ie. > < <= >= etc.)
+; Pagination (infinite scroll?)
 
 ;; State
 
