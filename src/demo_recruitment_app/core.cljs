@@ -8,26 +8,28 @@
 
 (enable-console-print!)
 
+;; Todo List
+
+; Favouriting
+; Followers as num field and dropdown for operator (ie. > < <= >= etc.)
+
 ;; State
 
-(defonce gh-users (r/atom []))
-(defonce gh-query (r/atom {:followers ""
-                           :location ""
-                           :language ""}))
-(defonce gh-query-page (r/atom 1))
-(defonce only-favourites (r/atom false))
+(defonce app-state (r/atom {:users []
+                            :only-favourites false
+                            :active-query-count 0
+                            :query {:followers ""
+                                    :location ""
+                                    :language ""
+                                    :page 1}}))
 
-;; Helpers
+(def gh-users (r/cursor app-state [:users]))
+(def gh-query (r/cursor app-state [:query]))
+(def gh-query-page (r/cursor gh-query [:page]))
+(def only-favourites (r/cursor app-state [:only-favourites]))
+(def active-query-count (r/cursor app-state [:active-query-count]))
 
-(defn id->el [id]
-  (.getElementById js/document id))
-
-(defn tag-favourite [user]
-  (let [fav-set (s/get-collection "favourites")
-        is-fav? #(fav-set (:id %))]
-    (conj user (if (is-fav? user)
-                   [:favourite true]
-                   [:favourite false]))))
+;; Transformations (pure)
 
 (defn make-url [{:keys [followers location language]} page]
   (str "https://api.github.com/search/users"
@@ -38,7 +40,10 @@
        (if-not (blank? location) (str " location:" location))
        (if-not (blank? language) (str " language:" language))))
 
-;; Actions
+;; Actions (impure)
+
+(defn id->el [id]
+  (.getElementById js/document id))
 
 (defn get-users [query page]
   (http/get (make-url query page)
@@ -47,24 +52,23 @@
 
 (defn reset-users! []
   (go
+    (swap! active-query-count inc)
     (let [new-users (<! (get-users @gh-query @gh-query-page))]
-      (reset! gh-users (map tag-favourite new-users)))))
+      (reset! gh-users new-users)
+      (swap! active-query-count dec))))
 
 (defn into-users! []
   (go
+    (swap! active-query-count inc)
     (let [new-users (<! (get-users @gh-query @gh-query-page))]
-      (swap! gh-users #(into (vec %) (map tag-favourite) new-users)))))
+      (swap! gh-users #(into (vec %) new-users))
+      (swap! active-query-count dec))))
 
-(defn update-favourites! [f & args]
-  (apply s/update-collection-as! #{} "favourites" f args))
+; TODO: stub
+(defn favourite-user! [user])
 
-(defn favourite-user! [user]
-  (update-favourites! conj (:id user))
-  (swap! gh-users #(map tag-favourite %)))
-
-(defn unfavourite-user! [user]
-  (update-favourites! disj (:id user))
-  (swap! gh-users #(map tag-favourite %)))
+; TODO: stub
+(defn unfavourite-user! [user])
 
 (defn update-query! []
   (let [new-query {:followers (.-value (id->el "followers-filter"))
@@ -75,7 +79,7 @@
       (reset! gh-query-page 1)
       (reset-users!))))
 
-(defn update-page! []
+(defn inc-page! []
   (swap! gh-query-page inc)
   (into-users!))
 
@@ -92,31 +96,13 @@
     [:td [favourite-star user]]])
 
 (defn user-list []
-  (if (empty? @gh-users)
-    [:div.loading-spinner [:span.fa.fa-spinner.fa-spin]]
-    (let [show-all (not @only-favourites)]
-      [:div.user-list
-        [:table.table.table-striped
-          [:tbody
-            (->> @gh-users
-              (into []
-                (comp
-                  (map-indexed #(^{:key %1} [user-row %2]))
-                  (filter #(or show-all (:favourite %))))))]]
-        (when (and show-all (= (mod (count @gh-users) 100) 0)) ;FIXME
-          [:div.col-md-offset-2
-            [:button.btn.btn-default.col-md-8
-              {:on-click #(update-page!)}
-              "Mas"]])])))
-
-(defn favourites-filter []
-  [:div.checkbox.favourites-filter
-    [:input#favourites-filter
-      {:type "checkbox"
-       :value @only-favourites
-       :on-click #(swap! only-favourites not)}]
-    [:label {:for "favourites-filter"}
-      "Mostrar solo favoritos"]])
+  (if-let [users (seq @gh-users)]
+    [:div.user-list
+      [:table.table.table-striped
+        (into [:tbody]
+              (map-indexed
+                (fn [idx user] ^{:key idx} [user-row user]))
+              users)]]))
 
 (defn query-filters []
   [:div.form-horizontal.query-filters
@@ -138,17 +124,15 @@
     [:button.btn.btn-default.col-sm-12 {:on-click #(update-query!)}
       "Filtrar"]])
 
-(defn filter-list []
-  [:div.filter-list
-    [query-filters]
-    [favourites-filter]])
-
 (defn root []
   [:div.container
     [:h1 "Usuarios"]
     [:div.row
-      [:div.col-md-8 [user-list]]
-      [:div.col-md-3 [filter-list]]]])
+      [:div.col-md-8
+        (if (= 0 @active-query-count)
+          [user-list]
+          [:div.loading-spinner [:span.fa.fa-spinner.fa-spin]])]
+      [:div.col-md-3.sticky [query-filters]]]])
 
 ;; Run
 
@@ -158,6 +142,6 @@
     (set! (.-value (id->el "location-filter")) location)
     (set! (.-value (id->el "language-filter")) language)))
 
-(defonce users-initialised (reset-users!))
+(defonce *app-init* (reset-users!))
 
 (r/render-component [root] (id->el "app"))

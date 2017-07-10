@@ -35,16 +35,16 @@
   (remove-item* (str *coll-ns* *ns-separator* key)))
 
 (defn update-item! [key f & args]
-  (as-> item (get-item key)
+  (as-> (get-item key) item
     (apply f item args)
     (set-item! key item)))
 
 (defn update-collection! [key f & args]
-  (as-> coll (get-collection key)
+  (as-> (get-collection key) coll
     (apply f coll args)
     (set-collection! key coll)))
 
 (defn update-collection-as! [dest key f & args]
-  (as-> coll (get-collection-as key dest)
+  (as-> (get-collection-as key dest) coll
     (apply f coll args)
     (set-collection! key coll)))
