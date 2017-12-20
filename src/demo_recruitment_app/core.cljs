@@ -8,15 +8,15 @@
 
 (enable-console-print!)
 
-;; Todo List
+;; TODO
 
-; Favouriting
 ; Followers as num field and dropdown for operator (ie. > < <= >= etc.)
 ; Pagination (infinite scroll?)
 
 ;; State
 
 (defonce app-state (r/atom {:users []
+                            :favourite-users []
                             :only-favourites false
                             :active-query-count 0
                             :query {:followers ""
@@ -27,6 +27,7 @@
 (def gh-users (r/cursor app-state [:users]))
 (def gh-query (r/cursor app-state [:query]))
 (def gh-query-page (r/cursor gh-query [:page]))
+(def fav-users (r/cursor app-state [:favourite-users]))
 (def only-favourites (r/cursor app-state [:only-favourites]))
 (def active-query-count (r/cursor app-state [:active-query-count]))
 
@@ -65,11 +66,27 @@
       (swap! gh-users #(into (vec %) new-users))
       (swap! active-query-count dec))))
 
-; TODO: stub
-(defn favourite-user! [user])
+(defn reset-favourite-users! []
+  (go
+    (let [new-users (s/get-collection :favourites)]
+      (if new-users
+        (reset! fav-users new-users)
+        (s/set-collection! :favourites [])))))
 
-; TODO: stub
-(defn unfavourite-user! [user])
+(defn favourite-user! [user]
+  (s/update-collection! :favourites #(conj % user))
+  (reset-favourite-users!))
+
+(defn unfavourite-user! [user]
+  (s/update-collection! :favourites
+    (fn [favs]
+      (->> favs
+        (filter #(not= (:id %) (:id user)))
+        (into []))))
+  (reset-favourite-users!))
+
+(defn toggle-only-favourites []
+  (swap! only-favourites not))
 
 (defn update-query! []
   (let [new-query {:followers (.-value (id->el "followers-filter"))
@@ -87,7 +104,7 @@
 ;; Components
 
 (defn favourite-star [user]
-  (if (:favourite user)
+  (if (some #(= % (:id user)) (map :id @fav-users))
     [:span.fa.fa-star {:on-click #(unfavourite-user! user)}]
     [:span.fa.fa-star-o {:on-click #(favourite-user! user)}]))
 
@@ -97,37 +114,53 @@
     [:td [favourite-star user]]])
 
 (defn user-list []
-  (if-let [users (seq @gh-users)]
-    [:div.user-list
-      [:table.table.table-striped
-        (into [:tbody]
-              (map-indexed
-                (fn [idx user] ^{:key idx} [user-row user]))
-              users)]]))
+  (let [user-source (if @only-favourites @fav-users @gh-users)]
+    (if-let [users (seq user-source)]
+      [:div.user-list
+        [:table.table.table-striped
+          (into [:tbody]
+                (map-indexed
+                  (fn [idx user] ^{:key idx} [user-row user]))
+                users)]])))
 
 (defn query-filters []
-  [:div.form-horizontal.query-filters
-    [:div.form-group.followers-filter
-      [:label.control-label.col-sm-4 {:for "followers-filter"}
-        "Seguidores"]
-      [:div.col-sm-8
-        [:input#followers-filter.form-control]]]
-    [:div.form-group.location-filter
-      [:label.control-label.col-sm-4 {:for "location-filter"}
-        "Ubicación"]
-      [:div.col-sm-8
-        [:input#location-filter.form-control]]]
-    [:div.form-group.language-filter
-      [:label.control-label.col-sm-4 {:for "language-filter"}
-        "Lenguaje"]
-      [:div.col-sm-8
-        [:input#language-filter.form-control]]]
-    [:button.btn.btn-default.col-sm-12 {:on-click #(update-query!)}
-      "Filtrar"]])
+  (let [only-favourites @only-favourites]
+    [:div.form-horizontal.query-filters
+      [:div.form-group.followers-filter
+        [:label.control-label.col-sm-4 {:for "followers-filter"}
+          "Seguidores"]
+        [:div.col-sm-8
+          [:input#followers-filter.form-control {:disabled only-favourites}]]]
+      [:div.form-group.location-filter
+        [:label.control-label.col-sm-4 {:for "location-filter"}
+          "Ubicación"]
+        [:div.col-sm-8
+          [:input#location-filter.form-control {:disabled only-favourites}]]]
+      [:div.form-group.language-filter
+        [:label.control-label.col-sm-4 {:for "language-filter"}
+          "Lenguaje"]
+        [:div.col-sm-8
+          [:input#language-filter.form-control {:disabled only-favourites}]]]
+      [:button.btn.btn-default.col-sm-12 {:on-click #(update-query!)
+                                          :disabled only-favourites}
+        "Filtrar"]]))
+
+(defn show-favourites []
+  (if-not @only-favourites
+    [:a.show-favourites {:on-click #(toggle-only-favourites)}
+      [:div.show-favourites-icon [:span.fa.fa-star]]
+      "¿Mostrar solo favoritos?"]
+    [:a.show-favourites {:on-click #(toggle-only-favourites)}
+      [:div.show-favourites-icon [:span.fa.fa-star-o]]
+      "¿Mostrar todos los usuarios?"]))
 
 (defn root []
   [:div.container
-    [:h1 "Usuarios"]
+    [:div.row
+      [:div.col-md-8
+        [:header
+          [:h1 "Usuarios"]
+          [show-favourites]]]]
     [:div.row
       [:div.col-md-8
         (if (= 0 @active-query-count)
@@ -143,6 +176,9 @@
     (set! (.-value (id->el "location-filter")) location)
     (set! (.-value (id->el "language-filter")) language)))
 
-(defonce *app-init* (reset-users!))
+(defonce *app-init*
+  (do
+    (reset-users!)
+    (reset-favourite-users!)))
 
 (r/render-component [root] (id->el "app"))

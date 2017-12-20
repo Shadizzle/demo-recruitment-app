@@ -1,3 +1,24 @@
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 1em 0;
+}
+
+header h1 {
+  margin: 0;
+  padding: 0;
+}
+
+.show-favourites {
+  cursor: pointer;
+}
+
+.show-favourites-icon {
+  display: inline;
+  margin-right: 4px;
+}
+
 .loading-spinner {
   display: flex;
   justify-content: center;
